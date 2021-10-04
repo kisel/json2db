@@ -1,4 +1,5 @@
 use std::{error::Error};
+use structopt::StructOpt;
 use tokio_postgres::{NoTls};
 use tokio::time;
 use anyhow::{Result};
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS jsonstats (
 
 async fn insert_record(cfg: &Config, payload: &str) -> Result<(), Box<dyn Error> > {
     let (client, connection) =
-        tokio_postgres::connect(&cfg.postgres_url, NoTls).await?;
+        tokio_postgres::connect(&cfg.database_url, NoTls).await?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -49,9 +50,8 @@ async fn stats_to_db(cfg: &Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn start_loop() -> Result<(), Box<dyn Error>> {
+async fn start_loop(cfg: &Config) -> Result<(), Box<dyn Error>> {
     const INTERVAL: u32 = 60;
-    let cfg = Config::new()?;
 
     loop {
         match stats_to_db(&cfg).await {
@@ -65,7 +65,7 @@ async fn start_loop() -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() {
-    start_loop()
+    start_loop(&Config::from_args())
         .await
         .unwrap_or_else(|e| println!("Whoops: {}", e));
 }
