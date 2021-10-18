@@ -1,11 +1,12 @@
 use std::{error::Error};
+use ::futures::future;
 use structopt::StructOpt;
 use tokio_postgres::{NoTls};
-use tokio::time;
+use tokio::{time};
 use anyhow::{Result};
 
 mod config;
-use config::Config;
+use config::{Config, DbConfig, ScratchItem};
 
 static DB_INIT: &str = r#"
 CREATE TABLE IF NOT EXISTS jsonstats (
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS jsonstats (
   )
 "#;
 
-async fn insert_record(cfg: &Config, payload: &str) -> Result<(), Box<dyn Error> > {
+async fn insert_record(cfg: &DbConfig, payload: &str) -> Result<(), Box<dyn Error> > {
     let (client, connection) =
         tokio_postgres::connect(&cfg.database_url, NoTls).await?;
 
@@ -40,8 +41,8 @@ async fn insert_record(cfg: &Config, payload: &str) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
-async fn stats_to_db(cfg: &Config) -> Result<(), Box<dyn Error>> {
-    let resp = reqwest::get(&cfg.api_url)
+async fn stats_to_db(cfg: &DbConfig, scratch: &ScratchItem) -> Result<(), Box<dyn Error>> {
+    let resp = reqwest::get(&scratch.url)
         .await?
         .text()
         .await?;
@@ -50,11 +51,15 @@ async fn stats_to_db(cfg: &Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn start_loop(cfg: &Config) -> Result<(), Box<dyn Error>> {
-    let interval: u32 = cfg.interval_sec;
-
+async fn start_worker(cfg: &Config, scratch: ScratchItem) {
+    let dbcfg = cfg.get_db_config();
+    let interval: u32 = if scratch.interval != 0 {
+        scratch.interval
+    } else {
+        cfg.interval_sec
+    };
     loop {
-        match stats_to_db(&cfg).await {
+        match stats_to_db(&dbcfg, &scratch).await {
             Ok(_) => println!("Success"),
             Err(e) => println!("Request has failed: {}", e)
         }
@@ -63,9 +68,22 @@ async fn start_loop(cfg: &Config) -> Result<(), Box<dyn Error>> {
     }
 }
 
+async fn run_workers(cfg: &Config) -> Result<()> {
+    let filecfg = cfg.read_config_file().await?;
+
+    let cli_scratch_item = &cfg.get_scratch_item();
+
+    let mut workers = Vec::new();
+    for sii in filecfg.instances.iter().chain(cli_scratch_item) {
+        workers.push(start_worker(cfg, (*sii).clone()));
+    }
+    future::join_all(workers).await;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
-    start_loop(&Config::from_args())
+    run_workers(&Config::from_args())
         .await
         .unwrap_or_else(|e| println!("Whoops: {}", e));
 }
