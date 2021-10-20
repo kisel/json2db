@@ -51,15 +51,15 @@ async fn stats_to_db(cfg: &Config) -> Result<(), Box<dyn Error>> {
 }
 
 async fn start_loop(cfg: &Config) -> Result<(), Box<dyn Error>> {
-    const INTERVAL: u32 = 60;
+    let interval: u32 = cfg.interval_sec;
 
     loop {
         match stats_to_db(&cfg).await {
             Ok(_) => println!("Success"),
             Err(e) => println!("Request has failed: {}", e)
         }
-        println!("Next tick in {} sec", INTERVAL);
-        time::sleep(time::Duration::from_secs(60)).await;
+        println!("Next tick in {} sec", interval);
+        time::sleep(time::Duration::from_secs(interval.into())).await;
     }
 }
 
