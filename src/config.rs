@@ -26,8 +26,8 @@ pub struct Config {
     #[structopt(short, long, env = "INTERVAL", default_value = "60")]
     pub interval_sec: u32,
 
-    /// scratch config yaml
-    #[structopt(short, long, env = "CONFIG")]
+    /// scratch config yamj
+    #[structopt(short, long, env = "CONFIG", default_value="")]
     pub config: String,
 }
 
