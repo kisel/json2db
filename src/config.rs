@@ -19,7 +19,7 @@ pub struct Config {
     pub key: String,
 
     /// API url to scrab
-    #[structopt(long, env = "API_URL")]
+    #[structopt(long, env = "API_URL", default_value="")]
     pub api_url: String,
 
     /// Default top-level scrape interval in seconds
